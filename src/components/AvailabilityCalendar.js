@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameMonth, addMonths, getDay, parse } from 'date-fns';
 import { Calendar as CalendarIcon, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import * as XLSX from 'xlsx';
 
 const AvailabilityCalendar = () => {
@@ -19,15 +20,20 @@ const AvailabilityCalendar = () => {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  
+  // New state for admin availability adding
+  const [newSlotType, setNewSlotType] = useState('single');
+  const [newSlotDate, setNewSlotDate] = useState('');
+  const [newSlotTime, setNewSlotTime] = useState('');
+  const [newSlotDays, setNewSlotDays] = useState([]);
+  const [newSlotMonth, setNewSlotMonth] = useState('');
 
-  // Mock one-time passwords (in a real app, this would be managed securely on the server)
+  // Mock one-time passwords and admin password (in a real app, these would be managed securely on the server)
   const validOneTimePasswords = ['OTP123', 'OTP456', 'OTP789'];
-
-  // Mock admin password (in a real app, this would be securely managed on the server)
   const ADMIN_PASSWORD = 'admin123';
 
   useEffect(() => {
-    // Simulating fetching availability data
+    // Initial mock data
     const mockAvailability = {
       '2024-09-15': ['09:00 AM', '10:00 AM', '2:00 PM'],
       '2024-09-16': ['11:00 AM', '3:00 PM'],
@@ -42,11 +48,11 @@ const AvailabilityCalendar = () => {
   });
 
   const handlePrevMonth = () => {
-    setCurrentDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() - 1, 1));
+    setCurrentDate(prevDate => addMonths(prevDate, -1));
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 1));
+    setCurrentDate(prevDate => addMonths(prevDate, 1));
   };
 
   const handleDateHover = (date) => {
@@ -100,6 +106,39 @@ const AvailabilityCalendar = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Booked Meetings");
     XLSX.writeFile(wb, "booked_meetings.xlsx");
+  };
+
+  const handleAddAvailability = () => {
+    if (newSlotType === 'single') {
+      const dateKey = newSlotDate;
+      setAvailabilitySlots(prev => ({
+        ...prev,
+        [dateKey]: [...(prev[dateKey] || []), newSlotTime]
+      }));
+    } else if (newSlotType === 'recurring') {
+      const month = parse(newSlotMonth, 'yyyy-MM', new Date());
+      const daysInSelectedMonth = eachDayOfInterval({
+        start: startOfMonth(month),
+        end: endOfMonth(month),
+      });
+
+      daysInSelectedMonth.forEach(date => {
+        if (newSlotDays.includes(getDay(date).toString())) {
+          const dateKey = format(date, 'yyyy-MM-dd');
+          setAvailabilitySlots(prev => ({
+            ...prev,
+            [dateKey]: [...(prev[dateKey] || []), newSlotTime]
+          }));
+        }
+      });
+    }
+
+    // Reset form
+    setNewSlotType('single');
+    setNewSlotDate('');
+    setNewSlotTime('');
+    setNewSlotDays([]);
+    setNewSlotMonth('');
   };
 
   return (
@@ -217,9 +256,9 @@ const AvailabilityCalendar = () => {
 
       {/* Admin Login Modal */}
       <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Admin Login</DialogTitle>
+            <DialogTitle>{isAdminAuthenticated ? 'Admin Panel' : 'Admin Login'}</DialogTitle>
           </DialogHeader>
           {!isAdminAuthenticated ? (
             <div className="py-4">
@@ -230,10 +269,86 @@ const AvailabilityCalendar = () => {
                 onChange={(e) => setAdminPassword(e.target.value)}
                 className="mt-2"
               />
+              <DialogFooter className="mt-4">
+                <Button onClick={handleAdminLogin}>Login</Button>
+              </DialogFooter>
             </div>
           ) : (
             <div className="py-4">
-              <h3 className="text-lg font-semibold mb-2">Admin Controls</h3>
+              <h3 className="text-lg font-semibold mb-2">Add Availability</h3>
+              <Select onValueChange={setNewSlotType} defaultValue={newSlotType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select slot type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single Slot</SelectItem>
+                  <SelectItem value="recurring">Recurring Slot</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {newSlotType === 'single' && (
+                <>
+                  <Input
+                    type="date"
+                    value={newSlotDate}
+                    onChange={(e) => setNewSlotDate(e.target.value)}
+                    className="mt-2"
+                  />
+                  <Input
+                    type="time"
+                    value={newSlotTime}
+                    onChange={(e) => setNewSlotTime(e.target.value)}
+                    className="mt-2"
+                  />
+                </>
+              )}
+
+              {newSlotType === 'recurring' && (
+                <>
+                  <Select onValueChange={setNewSlotMonth} defaultValue={newSlotMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const date = new Date(2024, i, 1);
+                        return (
+                          <SelectItem key={i} value={format(date, 'yyyy-MM')}>
+                            {format(date, 'MMMM yyyy')}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                      <Button
+                        key={day}
+                        variant={newSlotDays.includes(index.toString()) ? 'default' : 'outline'}
+                        onClick={() => setNewSlotDays(prev => 
+                          prev.includes(index.toString())
+                            ? prev.filter(d => d !== index.toString())
+                            : [...prev, index.toString()]
+                        )}
+                      >
+                        {day}
+                      </Button>
+                    ))}
+                  </div>
+                  <Input
+                    type="time"
+                    value={newSlotTime}
+                    onChange={(e) => setNewSlotTime(e.target.value)}
+                    className="mt-2"
+                  />
+                </>
+              )}
+
+              <Button onClick={handleAddAvailability} className="mt-4 w-full">
+                Add Availability
+              </Button>
+
+              <h3 className="text-lg font-semibold mt-6 mb-2">Admin Controls</h3>
               <Button onClick={exportToExcel} className="mb-2 w-full">
                 Export Booked Meetings to Excel
               </Button>
@@ -242,14 +357,6 @@ const AvailabilityCalendar = () => {
               </Button>
             </div>
           )}
-          <DialogFooter>
-            {!isAdminAuthenticated && (
-              <Button onClick={handleAdminLogin}>Login</Button>
-            )}
-            <Button onClick={() => setIsAdminModalOpen(false)} variant="outline">
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
