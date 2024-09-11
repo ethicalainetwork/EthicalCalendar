@@ -81,28 +81,67 @@ const AvailabilityCalendar = () => {
     setBookingStatus(null);
   };
 
-  const handleBooking = () => {
-    if (validOneTimePasswords.includes(oneTimePassword)) {
-      setBookingStatus('success');
-      const dateKey = format(selectedSlot.date, 'yyyy-MM-dd');
-      setAvailabilitySlots(prev => ({
-        ...prev,
-        [dateKey]: prev[dateKey].filter(slot => slot !== selectedSlot.slot)
-      }));
-      setBookedMeetings(prev => [...prev, { date: dateKey, time: selectedSlot.slot, email }]);
-    } else {
-      setBookingStatus('error');
+  const handleAdminLogin = async () => {
+    try {
+      const response = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setIsAdminAuthenticated(true);
+        setAdminPassword('');
+      } else {
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('An error occurred during login');
     }
   };
 
-  const handleAdminLogin = () => {
-    if (adminPassword === ADMIN_PASSWORD) {
-      setIsAdminAuthenticated(true);
-      setAdminPassword('');
-    } else {
-      alert('Incorrect password');
+  const handleBooking = async () => {
+    try {
+      const response = await fetch('/api/book-appointment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          date: format(selectedSlot.date, 'yyyy-MM-dd'),
+          time: selectedSlot.slot,
+          email,
+          oneTimePassword 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setBookingStatus('success');
+        // Update local state to reflect the booking
+        const dateKey = format(selectedSlot.date, 'yyyy-MM-dd');
+        setAvailabilitySlots(prev => ({
+          ...prev,
+          [dateKey]: prev[dateKey].filter(slot => slot !== selectedSlot.slot)
+        }));
+        setBookedMeetings(prev => [...prev, { date: dateKey, time: selectedSlot.slot, email }]);
+      } else {
+        setBookingStatus('error');
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error('Booking error:', error);
+      setBookingStatus('error');
+      alert('An error occurred during booking');
     }
   };
+
 
   const handleAdminLogout = () => {
     setIsAdminAuthenticated(false);
