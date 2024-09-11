@@ -29,8 +29,15 @@ const AvailabilityCalendar = () => {
   const [newSlotMonth, setNewSlotMonth] = useState('');
 
   // Mock one-time passwords and admin password (in a real app, these would be managed securely on the server)
-  const validOneTimePasswords = ['OTP123', 'OTP456', 'OTP789'];
-  const ADMIN_PASSWORD = 'admin123';
+  const validOneTimePasswords = [
+    process.env.REACT_APP_OTP_1,
+    process.env.REACT_APP_OTP_2,
+    process.env.REACT_APP_OTP_3
+  ].filter(Boolean); // Filter out any undefined values
+
+  const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD;
+
+
 
   useEffect(() => {
     // Initial mock data
